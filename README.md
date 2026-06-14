@@ -5,8 +5,7 @@ the paper's WavLM_Att and CFIF-GF workflows on IEMOCAP and EMODB.
 
 The current code includes dataset preprocessing, manifest loading or dataset
 auto-discovery, 10-fold leave-one-speaker-out (LOSO) training, logging, metrics,
-and placeholder model classes. The real `WavLM_Att` and `CFIF-GF` model internals
-can be implemented later inside `models/`.
+and implementations of the `WavLM_Att` and `CFIF-GF` model structures.
 
 ## Project Structure
 
@@ -137,7 +136,7 @@ These are computed in `utils/metrics.py` as:
 - `ua`: mean per-class recall.
 - `macro_f1`: mean per-class F1.
 
-## Planned Models
+## Models
 
 - `WavLM_Att`
 - `CFIF-GF`
@@ -162,3 +161,38 @@ These are computed in `utils/metrics.py` as:
 
 The model forward pass returns logits for `CrossEntropyLoss`. For inference
 probabilities, use `model.predict_proba(...)`, which applies Softmax.
+
+## CFIF-GF Model
+
+`models/cfif_gf.py` implements the chapter 4 model:
+
+- Raw `waveform` is passed to HuggingFace `microsoft/wavlm-base` to obtain
+  WavLM sequence features `X_w`.
+- WavLM is frozen by default with `model.freeze_wavlm: true`.
+- `mfcc` is encoded by a Bi-LSTM to obtain MFCC sequence features `X_m`.
+- `spectrogram` is encoded by TFCNN to obtain spectrogram sequence features
+  `X_s`.
+- TFCNN uses two parallel Conv2d branches:
+  T-CNN with a `5 x 1` kernel and F-CNN with a `1 x 4` kernel.
+- Each TFCNN branch contains Conv2d, BatchNorm2d, ReLU, and MaxPool2d.
+- Branch outputs are concatenated, passed through `3 x 3` convolution blocks,
+  then AdaptiveAvgPool and Linear produce spectrogram feature sequences.
+- CFIF has two cross-feature interaction branches:
+  `MFCC -> WavLM` and `Spectrogram -> WavLM`.
+- Each CFIF branch maps source and WavLM features to a common hidden dimension,
+  applies broadcast add, tanh, Linear, and softmax to compute interaction
+  attention over the WavLM sequence.
+- The attended WavLM features are concatenated with the source sequence and
+  projected to a common dimension.
+- GF is a gMLP-style global fusion block with LayerNorm, Linear, GELU, feature
+  split, LayerNorm plus `1 x 1` Conv gating, elementwise multiplication, Linear,
+  and residual connection.
+- The pooled global fusion feature is sent to the final fully connected
+  classifier.
+
+Run CFIF-GF LOSO training with:
+
+```bash
+python train.py --config configs/cfif_gf_iemocap.yaml --loso
+python train.py --config configs/cfif_gf_emodb.yaml --loso
+```

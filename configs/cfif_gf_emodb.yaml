@@ -1,0 +1,19 @@
+inherits: configs/emodb.yaml
+
+model:
+  name: CFIF-GF
+  wavlm_name: microsoft/wavlm-base
+  freeze_wavlm: true
+  mfcc_dim: 40
+  mfcc_hidden_size: 256
+  mfcc_num_layers: 1
+  tfcnn_branch_channels: 64
+  tfcnn_conv_channels: 128
+  spectrogram_feature_dim: 512
+  cfif_hidden_dim: 256
+  cfif_output_dim: 512
+  global_fusion_hidden_dim: 1024
+  classifier_hidden_dim: 256
+  dropout: 0.5
+  num_classes: 7
+

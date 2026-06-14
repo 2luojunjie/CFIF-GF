@@ -1,0 +1,11 @@
+inherits: configs/default.yaml
+
+dataset:
+  name: EMODB
+  root: data/EMODB
+  num_classes: 7
+  label_names: [anger, boredom, disgust, fear, happiness, neutral, sadness]
+
+model:
+  num_classes: 7
+

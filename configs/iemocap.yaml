@@ -1,0 +1,11 @@
+inherits: configs/default.yaml
+
+dataset:
+  name: IEMOCAP
+  root: data/IEMOCAP
+  num_classes: 4
+  label_names: [angry, happy, neutral, sad]
+
+model:
+  num_classes: 4
+

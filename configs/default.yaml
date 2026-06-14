@@ -1,0 +1,33 @@
+seed: 42
+device: auto
+output_dir: outputs
+log_dir: logs
+
+dataset:
+  name: IEMOCAP
+  root: data/IEMOCAP
+  train_manifest: null
+  val_manifest: null
+  test_manifest: null
+  mock: true
+  mock_num_samples: 32
+  sample_rate: 16000
+  duration_seconds: 3.0
+  num_classes: 4
+  label_names: [angry, happy, neutral, sad]
+
+model:
+  name: WavLM_Att
+  input_dim: 48000
+  hidden_dim: 128
+  dropout: 0.1
+  num_classes: 4
+
+train:
+  epochs: 1
+  batch_size: 4
+  num_workers: 0
+  learning_rate: 0.001
+  weight_decay: 0.0
+  log_interval: 5
+

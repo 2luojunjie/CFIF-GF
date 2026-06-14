@@ -5,6 +5,14 @@ dataset:
   root: data/EMODB
   num_classes: 7
   label_names: [anger, boredom, disgust, fear, happiness, neutral, sadness]
+  emodb_label_map:
+    W: anger
+    L: boredom
+    E: disgust
+    A: fear
+    F: happiness
+    N: neutral
+    T: sadness
 
 model:
   num_classes: 7

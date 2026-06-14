@@ -15,7 +15,7 @@ dataset:
   sample_rate: 16000
   duration_seconds: 3.0
   num_classes: 4
-  label_names: [angry, happy, neutral, sad]
+  label_names: [angry, happy, sad, neutral]
   preprocessing:
     n_mfcc: 40
     mfcc_window_ms: 40
@@ -51,6 +51,8 @@ train:
   optimizer: AdamW
   log_interval: 5
   log_backend: csv
+  amp: false
+  grad_clip_norm: 5.0
   early_stopping:
     monitor: wa
     patience: 10

@@ -1,0 +1,6 @@
+inherits: configs/iemocap_cfif_gf.yaml
+
+model:
+  fusion_mode: spec_to_wavlm
+  use_global_fusion: true
+

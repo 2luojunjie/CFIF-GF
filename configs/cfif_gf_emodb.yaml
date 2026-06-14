@@ -12,8 +12,10 @@ model:
   spectrogram_feature_dim: 512
   cfif_hidden_dim: 256
   cfif_output_dim: 512
+  fusion_mode: full
+  use_global_fusion: true
+  mha_num_heads: 4
   global_fusion_hidden_dim: 1024
   classifier_hidden_dim: 256
   dropout: 0.5
   num_classes: 7
-

@@ -97,7 +97,7 @@ WavLM。
 - EMODB：扫描 `.wav` 文件，并从官方文件名解析 speaker 与 emotion
 
 IEMOCAP 中的 `exc` 会合并到 `happy`，对应常见 4 类设置：
-`angry`、`happy`、`neutral`、`sad`。
+`angry`、`happy`、`sad`、`neutral`。
 
 ## 10 折 LOSO 交叉验证
 
@@ -106,7 +106,7 @@ LOSO fold 按 `speaker_id` 划分：
 - 每一折留一个 speaker 作为评估/测试集
 - 其他 speaker 作为训练集
 - 默认期望 10 个 speaker，即 10 折
-- 每折保存 `best.pt`、`last.pt`、`metrics.json`、`train_log.csv`
+- 每折保存 `best.pt`、`last.pt`、`metrics.csv`、`result.json`
 - 不传 `--fold` 时自动训练全部 10 折
 - 传 `--fold 0` 时只训练第 0 折
 - 所有折结束后，平均 WA、UA、F1 写入 `cross_validation_summary.json`
@@ -137,8 +137,8 @@ outputs/<DATASET>/<MODEL>/
   fold_00_<speaker_id>/
     best.pt
     last.pt
-    metrics.json
-    train_log.csv
+    metrics.csv
+    result.json
   cross_validation_summary.json
 ```
 
@@ -206,6 +206,44 @@ python train.py --config configs/default.yaml --fold 0
 
 ## 训练命令
 
+完整运行流程：
+
+1. 检查数据集：
+
+```bash
+python scripts/check_dataset.py --config configs/iemocap_cfif_gf.yaml
+```
+
+2. 可选：离线缓存 WavLM 特征：
+
+```bash
+python scripts/extract_wavlm_features.py --config configs/iemocap_cfif_gf.yaml --output-dir features/iemocap_wavlm --output-manifest manifests/iemocap_wavlm.csv
+```
+
+3. 调试 forward shape：
+
+```bash
+python scripts/debug_forward.py --config configs/iemocap_cfif_gf.yaml --batch-size 2
+```
+
+4. 单折训练：
+
+```bash
+python train.py --config configs/iemocap_cfif_gf.yaml --fold 0
+```
+
+5. 10 折训练：
+
+```bash
+python train.py --config configs/iemocap_cfif_gf.yaml --all-folds
+```
+
+6. 手动汇总结果：
+
+```bash
+python scripts/summarize_results.py --results-dir outputs/IEMOCAP/CFIF-GF
+```
+
 训练 WavLM_Att：
 
 ```bash
@@ -220,6 +258,26 @@ python train.py --config configs/iemocap_cfif_gf.yaml
 python train.py --config configs/emodb_cfif_gf.yaml
 ```
 
+消融实验示例：
+
+```bash
+python train.py --config configs/ablation/cfif_gf_full.yaml --all-folds
+python train.py --config configs/ablation/cfif_without_gf.yaml --all-folds
+python train.py --config configs/ablation/mha_fusion.yaml --all-folds
+```
+
+可用消融配置：
+
+- `configs/ablation/cfif_gf_full.yaml`
+- `configs/ablation/cfif_mfcc_to_wavlm.yaml`
+- `configs/ablation/cfif_spec_to_wavlm.yaml`
+- `configs/ablation/cfif_wavlm_to_mfcc_spec.yaml`
+- `configs/ablation/concat_fusion.yaml`
+- `configs/ablation/mha_fusion.yaml`
+- `configs/ablation/cfif_without_gf.yaml`
+- `configs/ablation/cfif_wav2vec2.yaml`
+- `configs/ablation/cfif_hubert.yaml`
+
 默认超参数：
 
 - IEMOCAP：learning rate `2e-5`，batch size `32`，epochs `100`，AdamW
@@ -233,6 +291,14 @@ patience 为 `10`。
 ```yaml
 train:
   log_backend: tensorboard
+```
+
+AMP 与梯度裁剪也在 YAML 中配置：
+
+```yaml
+train:
+  amp: true
+  grad_clip_norm: 5.0
 ```
 
 ## 评估

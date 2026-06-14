@@ -1,0 +1,7 @@
+inherits: configs/iemocap_cfif_gf.yaml
+
+model:
+  fusion_mode: mha_fusion
+  mha_num_heads: 4
+  use_global_fusion: true
+

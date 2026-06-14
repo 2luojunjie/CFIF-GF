@@ -98,7 +98,7 @@ standard dataset layouts:
 - EMODB: scans `.wav` files and parses speaker/emotion from official file names.
 
 For IEMOCAP, `exc` is merged into `happy`, matching the common 4-class SER setup:
-`angry`, `happy`, `neutral`, `sad`.
+`angry`, `happy`, `sad`, `neutral`.
 
 ## 10-Fold LOSO Training
 
@@ -107,7 +107,7 @@ Leave-one-speaker-out folds are built by `speaker_id`:
 - One speaker is used as the evaluation/test set in each fold.
 - All other speakers are used for training.
 - The default expected number of folds is 10.
-- Each fold saves `best.pt`, `last.pt`, `metrics.json`, and `train_log.csv`.
+- Each fold saves `best.pt`, `last.pt`, `metrics.csv`, and `result.json`.
 - If `--fold` is omitted, all 10 folds are trained automatically.
 - If `--fold 0` is provided, only the first fold is trained.
 - After all folds, average WA, UA, and F1 are written to
@@ -139,8 +139,8 @@ outputs/<DATASET>/<MODEL>/
   fold_00_<speaker_id>/
     best.pt
     last.pt
-    metrics.json
-    train_log.csv
+    metrics.csv
+    result.json
   cross_validation_summary.json
 ```
 
@@ -227,6 +227,44 @@ python train.py --config configs/emodb_cfif_gf.yaml
 
 ## Training Commands
 
+Full workflow:
+
+1. Check the dataset:
+
+```bash
+python scripts/check_dataset.py --config configs/iemocap_cfif_gf.yaml
+```
+
+2. Optional: cache WavLM features offline:
+
+```bash
+python scripts/extract_wavlm_features.py --config configs/iemocap_cfif_gf.yaml --output-dir features/iemocap_wavlm --output-manifest manifests/iemocap_wavlm.csv
+```
+
+3. Debug forward shapes:
+
+```bash
+python scripts/debug_forward.py --config configs/iemocap_cfif_gf.yaml --batch-size 2
+```
+
+4. Train one fold:
+
+```bash
+python train.py --config configs/iemocap_cfif_gf.yaml --fold 0
+```
+
+5. Train all 10 folds:
+
+```bash
+python train.py --config configs/iemocap_cfif_gf.yaml --all-folds
+```
+
+6. Summarize results manually if needed:
+
+```bash
+python scripts/summarize_results.py --results-dir outputs/IEMOCAP/CFIF-GF
+```
+
 Train WavLM_Att:
 
 ```bash
@@ -241,6 +279,26 @@ python train.py --config configs/iemocap_cfif_gf.yaml
 python train.py --config configs/emodb_cfif_gf.yaml
 ```
 
+Ablation examples:
+
+```bash
+python train.py --config configs/ablation/cfif_gf_full.yaml --all-folds
+python train.py --config configs/ablation/cfif_without_gf.yaml --all-folds
+python train.py --config configs/ablation/mha_fusion.yaml --all-folds
+```
+
+Available ablation configs:
+
+- `configs/ablation/cfif_gf_full.yaml`
+- `configs/ablation/cfif_mfcc_to_wavlm.yaml`
+- `configs/ablation/cfif_spec_to_wavlm.yaml`
+- `configs/ablation/cfif_wavlm_to_mfcc_spec.yaml`
+- `configs/ablation/concat_fusion.yaml`
+- `configs/ablation/mha_fusion.yaml`
+- `configs/ablation/cfif_without_gf.yaml`
+- `configs/ablation/cfif_wav2vec2.yaml`
+- `configs/ablation/cfif_hubert.yaml`
+
 Default dataset hyperparameters:
 
 - IEMOCAP: learning rate `2e-5`, batch size `32`, epochs `100`, AdamW.
@@ -254,6 +312,14 @@ CSV logging is enabled by default. To use TensorBoard, set:
 ```yaml
 train:
   log_backend: tensorboard
+```
+
+AMP and gradient clipping are configured in YAML:
+
+```yaml
+train:
+  amp: true
+  grad_clip_norm: 5.0
 ```
 
 ## Evaluation

@@ -4,7 +4,7 @@ dataset:
   name: IEMOCAP
   root: data/IEMOCAP
   num_classes: 4
-  label_names: [angry, happy, neutral, sad]
+  label_names: [angry, happy, sad, neutral]
 
 model:
   num_classes: 4

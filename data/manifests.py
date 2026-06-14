@@ -45,7 +45,7 @@ def discover_dataset_items(dataset_cfg):
     if dataset_name == "IEMOCAP":
         return discover_iemocap_items(root, label_to_index)
     if dataset_name == "EMODB":
-        return discover_emodb_items(root, label_to_index)
+        return discover_emodb_items(root, label_to_index, dataset_cfg.get("emodb_label_map"))
     raise ValueError(f"Unsupported dataset: {dataset_cfg['name']}")
 
 
@@ -81,16 +81,17 @@ def discover_iemocap_items(root, label_to_index):
     return sorted(items, key=lambda item: item["path"])
 
 
-def discover_emodb_items(root, label_to_index):
+def discover_emodb_items(root, label_to_index, label_map=None):
     if not root.exists():
         raise FileNotFoundError(f"EMODB root not found: {root}")
 
     items = []
+    label_map = label_map or EMODB_LABEL_MAP
     for wav_path in root.rglob("*.wav"):
         stem = wav_path.stem
         if len(stem) < 6:
             continue
-        label_name = EMODB_LABEL_MAP.get(stem[5])
+        label_name = label_map.get(stem[5])
         if label_name not in label_to_index:
             continue
         items.append(

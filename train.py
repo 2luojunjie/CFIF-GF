@@ -1,6 +1,7 @@
 import argparse
 import csv
 import json
+from contextlib import nullcontext
 from pathlib import Path
 
 import torch
@@ -8,6 +9,7 @@ from torch import nn
 
 from data import build_dataloader, build_loso_folds
 from models import build_model
+from scripts.summarize_results import summarize_results_dir
 from utils import compute_classification_metrics, load_config, set_seed, setup_logger
 
 try:
@@ -20,6 +22,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Train a speech emotion recognition model.")
     parser.add_argument("--config", default="configs/default.yaml", help="Path to YAML config.")
     parser.add_argument("--fold", type=int, default=None, help="0-based LOSO fold index. Omit to train all folds.")
+    parser.add_argument("--all-folds", action="store_true", help="Train all 10 LOSO folds.")
     parser.add_argument("--resume", default=None, help="Path to a checkpoint for resuming training.")
     return parser.parse_args()
 
@@ -48,19 +51,33 @@ def forward_model(model, batch, device):
     )
 
 
-def train_one_epoch(model, dataloader, criterion, optimizer, device, num_classes, label_names):
+def train_one_epoch(model, dataloader, criterion, optimizer, scaler, device, num_classes, label_names, train_cfg):
     model.train()
     total_loss = 0.0
     all_logits = []
     all_labels = []
+    use_amp = bool(train_cfg.get("amp", False)) and device.type == "cuda"
+    grad_clip_norm = train_cfg.get("grad_clip_norm")
 
     for batch in dataloader:
         labels = batch["label"].to(device)
         optimizer.zero_grad(set_to_none=True)
-        logits = forward_model(model, batch, device)
-        loss = criterion(logits, labels)
-        loss.backward()
-        optimizer.step()
+        amp_context = torch.autocast(device_type="cuda", enabled=True) if use_amp else nullcontext()
+        with amp_context:
+            logits = forward_model(model, batch, device)
+            loss = criterion(logits, labels)
+        if scaler is not None:
+            scaler.scale(loss).backward()
+            if grad_clip_norm is not None:
+                scaler.unscale_(optimizer)
+                torch.nn.utils.clip_grad_norm_(model.parameters(), float(grad_clip_norm))
+            scaler.step(optimizer)
+            scaler.update()
+        else:
+            loss.backward()
+            if grad_clip_norm is not None:
+                torch.nn.utils.clip_grad_norm_(model.parameters(), float(grad_clip_norm))
+            optimizer.step()
 
         total_loss += loss.item()
         all_logits.append(logits.detach().cpu())
@@ -167,6 +184,8 @@ def run_training(config, device, logger, output_dir, train_items, eval_items, fo
     model = build_model(config).to(device)
     criterion = nn.CrossEntropyLoss()
     optimizer = build_optimizer(model, config)
+    use_amp = bool(config["train"].get("amp", False)) and device.type == "cuda"
+    scaler = torch.cuda.amp.GradScaler(enabled=use_amp) if use_amp else None
 
     start_epoch = 1
     best_score = -1.0
@@ -189,7 +208,7 @@ def run_training(config, device, logger, output_dir, train_items, eval_items, fo
     try:
         for epoch in range(start_epoch, epochs + 1):
             train_metrics = train_one_epoch(
-                model, train_loader, criterion, optimizer, device, num_classes, label_names
+                model, train_loader, criterion, optimizer, scaler, device, num_classes, label_names, train_cfg
             )
             eval_metrics = evaluate_split(model, eval_loader, criterion, device, num_classes, label_names)
             score = float(eval_metrics[monitor])
@@ -235,7 +254,7 @@ def run_training(config, device, logger, output_dir, train_items, eval_items, fo
                 "eval_f1": eval_metrics["macro_f1"],
                 "best_score": best_score,
             }
-            append_csv_log(output_dir / "train_log.csv", row)
+            append_csv_log(output_dir / "metrics.csv", row)
             log_epoch(writer, epoch, train_metrics, eval_metrics)
             history.append({"epoch": epoch, "train": train_metrics, "eval": eval_metrics})
 
@@ -269,6 +288,8 @@ def run_training(config, device, logger, output_dir, train_items, eval_items, fo
         "final": best_checkpoint["metrics"],
         "checkpoint": str(output_dir / "best.pt"),
     }
+    with (output_dir / "result.json").open("w", encoding="utf-8") as handle:
+        json.dump(result, handle, indent=2, ensure_ascii=False)
     with (output_dir / "metrics.json").open("w", encoding="utf-8") as handle:
         json.dump(result, handle, indent=2, ensure_ascii=False)
     return result
@@ -279,9 +300,9 @@ def summarize_results(results):
     return {key: sum(result["final"][key] for result in results) / len(results) for key in keys}
 
 
-def select_folds(config, requested_fold):
+def select_folds(config, requested_fold, all_folds=False):
     folds = build_loso_folds(config["dataset"])
-    if requested_fold is None:
+    if all_folds or requested_fold is None:
         return folds
     if requested_fold < 0 or requested_fold >= len(folds):
         raise ValueError(f"--fold must be in [0, {len(folds) - 1}], got {requested_fold}")
@@ -298,7 +319,7 @@ def main():
     logger.info("Using device: %s", device)
     logger.info("Dataset: %s | Model: %s", config["dataset"]["name"], config["model"]["name"])
 
-    folds = select_folds(config, args.fold)
+    folds = select_folds(config, args.fold, all_folds=args.all_folds)
     output_root = Path(config.get("output_dir", "outputs")) / config["dataset"]["name"] / config["model"]["name"]
     results = []
     for fold in folds:
@@ -330,6 +351,7 @@ def main():
         summary_path = output_root / "cross_validation_summary.json"
         with summary_path.open("w", encoding="utf-8") as handle:
             json.dump({"folds": results, "average": summary}, handle, indent=2, ensure_ascii=False)
+        summarize_results_dir(output_root, output_root)
         logger.info("10-fold average | WA=%.4f UA=%.4f F1=%.4f", summary["wa"], summary["ua"], summary["macro_f1"])
         logger.info("Saved summary: %s", summary_path)
 

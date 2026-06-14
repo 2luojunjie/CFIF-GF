@@ -141,3 +141,24 @@ These are computed in `utils/metrics.py` as:
 
 - `WavLM_Att`
 - `CFIF-GF`
+
+## WavLM_Att Model
+
+`models/wavlm_att.py` implements the chapter 3 model:
+
+- Raw `waveform` is passed to HuggingFace `microsoft/wavlm-base`.
+- WavLM parameters are frozen by default with `model.freeze_wavlm: true`.
+- Set `model.freeze_wavlm: false` to fine-tune WavLM.
+- `mfcc` is encoded by a bidirectional LSTM.
+- MFCC BiLSTM hidden size is 256.
+- MFCC BiLSTM layer count is configurable with `model.mfcc_num_layers`.
+- `spectrogram` is encoded by an AlexNet-style CNN.
+- CNN channels are 64, 192, 384, 256, 256.
+- CNN kernels use 11 in the first convolution and 3 in later convolutions.
+- The co-attention module uses MFCC and spectrogram features to generate
+  temporal attention weights over the WavLM output sequence.
+- Attended WavLM, MFCC, and spectrogram features are concatenated for
+  classification.
+
+The model forward pass returns logits for `CrossEntropyLoss`. For inference
+probabilities, use `model.predict_proba(...)`, which applies Softmax.

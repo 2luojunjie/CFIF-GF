@@ -29,9 +29,15 @@ dataset:
 
 model:
   name: WavLM_Att
-  input_dim: 48000
-  hidden_dim: 128
-  dropout: 0.1
+  wavlm_name: microsoft/wavlm-base
+  freeze_wavlm: true
+  mfcc_dim: 40
+  mfcc_hidden_size: 256
+  mfcc_num_layers: 1
+  spectrogram_feature_dim: 512
+  attention_dim: 256
+  classifier_hidden_dim: 256
+  dropout: 0.5
   num_classes: 4
 
 train:

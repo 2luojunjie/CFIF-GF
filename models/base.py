@@ -7,7 +7,7 @@ class PlaceholderSERClassifier(nn.Module):
 
     def __init__(self, model_cfg):
         super().__init__()
-        input_dim = int(model_cfg["input_dim"])
+        input_dim = int(model_cfg.get("input_dim", 48000))
         hidden_dim = int(model_cfg.get("hidden_dim", 128))
         dropout = float(model_cfg.get("dropout", 0.1))
         num_classes = int(model_cfg["num_classes"])

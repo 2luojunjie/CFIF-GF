@@ -1,5 +1,7 @@
 # CFIF-GF
 
+[中文文档](README_zh.md) | English
+
 PyTorch speech emotion recognition (SER) project for reproducing and extending
 the paper's WavLM_Att and CFIF-GF workflows on IEMOCAP and EMODB.
 
@@ -295,4 +297,3 @@ reduces GPU memory usage.
 - IEMOCAP `exc` is merged into `happy`.
 - When paper implementation details are underspecified, the code favors a
   runnable PyTorch implementation with configurable dimensions in YAML.
-```

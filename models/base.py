@@ -20,8 +20,7 @@ class PlaceholderSERClassifier(nn.Module):
             nn.Linear(hidden_dim, num_classes),
         )
 
-    def forward(self, waveform):
+    def forward(self, waveform, mfcc=None, spectrogram=None):
         if waveform.ndim != 2:
             raise ValueError(f"Expected waveform shape [batch, samples], got {tuple(waveform.shape)}")
         return self.net(waveform.float())
-

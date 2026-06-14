@@ -27,9 +27,12 @@ def evaluate(model, dataloader, device, num_classes):
     all_logits = []
     all_labels = []
     for batch in dataloader:
-        waveform = batch["waveform"].to(device)
         labels = batch["label"].to(device)
-        logits = model(waveform)
+        logits = model(
+            waveform=batch["waveform"].to(device),
+            mfcc=batch["mfcc"].to(device),
+            spectrogram=batch["spectrogram"].to(device),
+        )
         all_logits.append(logits.cpu())
         all_labels.append(labels.cpu())
     return compute_classification_metrics(torch.cat(all_logits), torch.cat(all_labels), num_classes)
@@ -52,9 +55,8 @@ def main():
 
     dataloader = build_dataloader(config, split="test", shuffle=False)
     metrics = evaluate(model, dataloader, device, int(config["model"]["num_classes"]))
-    logger.info("accuracy=%.4f macro_f1=%.4f", metrics["accuracy"], metrics["macro_f1"])
+    logger.info("WA=%.4f UA=%.4f F1=%.4f", metrics["wa"], metrics["ua"], metrics["macro_f1"])
 
 
 if __name__ == "__main__":
     main()
-

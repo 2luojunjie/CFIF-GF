@@ -6,6 +6,7 @@ log_dir: logs
 dataset:
   name: IEMOCAP
   root: data/IEMOCAP
+  all_manifest: null
   train_manifest: null
   val_manifest: null
   test_manifest: null
@@ -15,6 +16,16 @@ dataset:
   duration_seconds: 3.0
   num_classes: 4
   label_names: [angry, happy, neutral, sad]
+  preprocessing:
+    n_mfcc: 40
+    mfcc_window_ms: 40
+    mfcc_hop_ms: 10
+    spectrogram_n_fft: 800
+    spectrogram_bins: 200
+    spectrogram_hop_ms: 10
+  loso:
+    enabled: false
+    expected_folds: 10
 
 model:
   name: WavLM_Att
@@ -30,4 +41,3 @@ train:
   learning_rate: 0.001
   weight_decay: 0.0
   log_interval: 5
-

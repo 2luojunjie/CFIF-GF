@@ -8,3 +8,9 @@ dataset:
 
 model:
   num_classes: 4
+
+train:
+  learning_rate: 0.00002
+  batch_size: 32
+  epochs: 100
+  optimizer: AdamW

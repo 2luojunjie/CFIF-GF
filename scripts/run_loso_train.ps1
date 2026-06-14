@@ -1,2 +1,1 @@
-python train.py --config configs/default.yaml --loso
-
+python train.py --config configs/iemocap_cfif_gf.yaml

@@ -27,6 +27,13 @@ CFIF-GF/
 pip install -r requirements.txt
 ```
 
+Recommended server environment:
+
+- Python 3.9+
+- PyTorch with CUDA matching the server driver
+- Single GPU is supported by default
+- HuggingFace `transformers` downloads `microsoft/wavlm-base` on first use
+
 ## Audio Preprocessing
 
 All samples are processed consistently in `data/preprocessing.py`:
@@ -51,6 +58,7 @@ All samples are processed consistently in `data/preprocessing.py`:
 - `label`
 - `speaker_id`
 - `file_path`
+- `wavlm_features`, empty by default or loaded from `wavlm_path`
 
 ## Datasets
 
@@ -69,13 +77,14 @@ or `train_manifest` / `test_manifest` for ordinary training/evaluation.
 CSV columns:
 
 ```csv
-path,label,speaker_id
-/path/to/audio.wav,angry,Session1_F
-/path/to/audio2.wav,0,Session1_M
+path,label,speaker_id,wavlm_path
+/path/to/audio.wav,angry,Session1_F,
+/path/to/audio2.wav,0,Session1_M,/path/to/offline_wavlm.pt
 ```
 
 `label` may be either a class name from `dataset.label_names` or an integer class
-index.
+index. `wavlm_path` is optional. When present, the model uses offline WavLM
+sequence features instead of running WavLM during training.
 
 ### Auto-Discovery Mode
 
@@ -93,28 +102,44 @@ For IEMOCAP, `exc` is merged into `happy`, matching the common 4-class SER setup
 
 Leave-one-speaker-out folds are built by `speaker_id`:
 
-- One speaker is used as the test set in each fold.
+- One speaker is used as the evaluation/test set in each fold.
 - All other speakers are used for training.
 - The default expected number of folds is 10.
-- Each fold saves its own checkpoint and metrics.
-- After all folds, average WA, UA, and F1 are written to `loso_summary.json`.
+- Each fold saves `best.pt`, `last.pt`, `metrics.json`, and `train_log.csv`.
+- If `--fold` is omitted, all 10 folds are trained automatically.
+- If `--fold 0` is provided, only the first fold is trained.
+- After all folds, average WA, UA, and F1 are written to
+  `cross_validation_summary.json`.
 
-Run:
+Train a single fold:
 
 ```bash
-python train.py --config configs/iemocap.yaml --loso
-python train.py --config configs/emodb.yaml --loso
+python train.py --config configs/iemocap_cfif_gf.yaml --fold 0
 ```
 
-Outputs:
+Train all folds:
+
+```bash
+python train.py --config configs/iemocap_cfif_gf.yaml
+python train.py --config configs/emodb_cfif_gf.yaml
+```
+
+Resume single-fold training:
+
+```bash
+python train.py --config configs/iemocap_cfif_gf.yaml --fold 0 --resume outputs/IEMOCAP/CFIF-GF/fold_00_<speaker_id>/last.pt
+```
+
+Output layout:
 
 ```text
-outputs/loso/
-  fold_01_<speaker_id>/
-    checkpoint.pt
+outputs/<DATASET>/<MODEL>/
+  fold_00_<speaker_id>/
+    best.pt
+    last.pt
     metrics.json
-  ...
-  loso_summary.json
+    train_log.csv
+  cross_validation_summary.json
 ```
 
 ## Mock Smoke Test
@@ -123,8 +148,7 @@ The default config uses `dataset.mock: true`, so the pipeline can run without
 real audio data:
 
 ```bash
-python train.py --config configs/default.yaml --loso
-python evaluate.py --config configs/default.yaml
+python train.py --config configs/default.yaml --fold 0
 ```
 
 ## Metrics
@@ -135,6 +159,8 @@ These are computed in `utils/metrics.py` as:
 - `wa`: overall accuracy.
 - `ua`: mean per-class recall.
 - `macro_f1`: mean per-class F1.
+- `confusion_matrix`: rows are true classes and columns are predicted classes.
+- `per_class`: precision, recall, F1, and support for every emotion class.
 
 ## Models
 
@@ -193,6 +219,80 @@ probabilities, use `model.predict_proba(...)`, which applies Softmax.
 Run CFIF-GF LOSO training with:
 
 ```bash
-python train.py --config configs/cfif_gf_iemocap.yaml --loso
-python train.py --config configs/cfif_gf_emodb.yaml --loso
+python train.py --config configs/iemocap_cfif_gf.yaml
+python train.py --config configs/emodb_cfif_gf.yaml
+```
+
+## Training Commands
+
+Train WavLM_Att:
+
+```bash
+python train.py --config configs/iemocap_wavlm_att.yaml
+python train.py --config configs/emodb_wavlm_att.yaml
+```
+
+Train CFIF-GF:
+
+```bash
+python train.py --config configs/iemocap_cfif_gf.yaml
+python train.py --config configs/emodb_cfif_gf.yaml
+```
+
+Default dataset hyperparameters:
+
+- IEMOCAP: learning rate `2e-5`, batch size `32`, epochs `100`, AdamW.
+- EMODB: learning rate `3e-5`, batch size `64`, epochs `100`, AdamW.
+
+Early stopping is configured in YAML under `train.early_stopping`. The default
+monitor is `wa`, with patience `10`.
+
+CSV logging is enabled by default. To use TensorBoard, set:
+
+```yaml
+train:
+  log_backend: tensorboard
+```
+
+## Evaluation
+
+Evaluate a best checkpoint:
+
+```bash
+python evaluate.py --config configs/iemocap_cfif_gf.yaml --checkpoint outputs/IEMOCAP/CFIF-GF/fold_00_<speaker_id>/best.pt
+```
+
+The evaluator prints WA, UA, Macro F1, confusion matrix, and per-class emotion
+metrics. It also writes `<checkpoint>.eval.json`.
+
+## Offline WavLM Features
+
+If GPU memory is tight, extract WavLM sequence features before training:
+
+```bash
+python scripts/extract_wavlm_features.py --config configs/iemocap_cfif_gf.yaml --output-dir features/iemocap_wavlm --output-manifest manifests/iemocap_wavlm.csv
+```
+
+Then set:
+
+```yaml
+dataset:
+  mock: false
+  all_manifest: manifests/iemocap_wavlm.csv
+model:
+  use_offline_wavlm_features: true
+  offline_wavlm_dim: 768
+```
+
+The manifest's `wavlm_path` column will be used automatically. With
+`use_offline_wavlm_features: true`, the training model does not load WavLM, which
+reduces GPU memory usage.
+
+## Engineering Assumptions
+
+- In LOSO training, the held-out speaker is used as the fold evaluation/test
+  split for early stopping and final reporting.
+- IEMOCAP `exc` is merged into `happy`.
+- When paper implementation details are underspecified, the code favors a
+  runnable PyTorch implementation with configurable dimensions in YAML.
 ```

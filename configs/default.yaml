@@ -31,6 +31,8 @@ model:
   name: WavLM_Att
   wavlm_name: microsoft/wavlm-base
   freeze_wavlm: true
+  use_offline_wavlm_features: false
+  offline_wavlm_dim: 768
   mfcc_dim: 40
   mfcc_hidden_size: 256
   mfcc_num_layers: 1
@@ -41,9 +43,15 @@ model:
   num_classes: 4
 
 train:
-  epochs: 1
+  epochs: 100
   batch_size: 4
   num_workers: 0
   learning_rate: 0.001
   weight_decay: 0.0
+  optimizer: AdamW
   log_interval: 5
+  log_backend: csv
+  early_stopping:
+    monitor: wa
+    patience: 10
+    min_delta: 0.0

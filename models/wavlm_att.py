@@ -4,6 +4,7 @@ from transformers import WavLMModel
 
 
 class MFCCBiLSTMEncoder(nn.Module):
+    """Encode MFCC from [B, 40, T_m] to utterance feature [B, 2H]."""
     def __init__(self, input_dim=40, hidden_size=256, num_layers=1, dropout=0.5):
         super().__init__()
         lstm_dropout = dropout if num_layers > 1 else 0.0
@@ -30,6 +31,7 @@ class MFCCBiLSTMEncoder(nn.Module):
 
 
 class SpectrogramAlexNetEncoder(nn.Module):
+    """Encode spectrogram from [B, F, T_s] to utterance feature [B, D_s]."""
     def __init__(self, output_dim=512, dropout=0.5):
         super().__init__()
         self.features = nn.Sequential(
@@ -66,6 +68,7 @@ class SpectrogramAlexNetEncoder(nn.Module):
 
 
 class CoAttentionFusion(nn.Module):
+    """Fuse WavLM sequence [B, T_w, D_w] with utterance features [B, D]."""
     def __init__(self, wavlm_dim, mfcc_dim, spec_dim, attention_dim=256):
         super().__init__()
         aux_dim = mfcc_dim + spec_dim
@@ -92,12 +95,17 @@ class WavLMAtt(nn.Module):
 
     def __init__(self, model_cfg):
         super().__init__()
-        wavlm_name = model_cfg.get("wavlm_name", "microsoft/wavlm-base")
-        self.wavlm = WavLMModel.from_pretrained(wavlm_name)
-        self.wavlm_dim = int(getattr(self.wavlm.config, "hidden_size", 768))
+        self.use_offline_wavlm_features = bool(model_cfg.get("use_offline_wavlm_features", False))
+        if self.use_offline_wavlm_features:
+            self.wavlm = None
+            self.wavlm_dim = int(model_cfg.get("offline_wavlm_dim", 768))
+        else:
+            wavlm_name = model_cfg.get("wavlm_name", "microsoft/wavlm-base")
+            self.wavlm = WavLMModel.from_pretrained(wavlm_name)
+            self.wavlm_dim = int(getattr(self.wavlm.config, "hidden_size", 768))
 
         self.freeze_wavlm = bool(model_cfg.get("freeze_wavlm", True))
-        if self.freeze_wavlm:
+        if self.wavlm is not None and self.freeze_wavlm:
             for parameter in self.wavlm.parameters():
                 parameter.requires_grad = False
 
@@ -131,14 +139,21 @@ class WavLMAtt(nn.Module):
             nn.Linear(classifier_hidden_dim, num_classes),
         )
 
-    def forward(self, waveform, mfcc, spectrogram, attention_mask=None):
-        if self.freeze_wavlm:
+    def forward(self, waveform, mfcc, spectrogram, attention_mask=None, wavlm_features=None):
+        # waveform: [B, samples]; optional wavlm_features: [B, T_w, D_w].
+        # mfcc: [B, 40, T_m]; spectrogram: [B, F, T_s].
+        if wavlm_features is not None and wavlm_features.numel() > 0:
+            wavlm_sequence = wavlm_features.float()
+        elif self.use_offline_wavlm_features:
+            raise ValueError("model.use_offline_wavlm_features is true, but batch wavlm_features is empty.")
+        elif self.freeze_wavlm:
             self.wavlm.eval()
             with torch.no_grad():
                 wavlm_outputs = self.wavlm(input_values=waveform.float(), attention_mask=attention_mask)
+            wavlm_sequence = wavlm_outputs.last_hidden_state
         else:
             wavlm_outputs = self.wavlm(input_values=waveform.float(), attention_mask=attention_mask)
-        wavlm_sequence = wavlm_outputs.last_hidden_state
+            wavlm_sequence = wavlm_outputs.last_hidden_state
         mfcc_features = self.mfcc_encoder(mfcc)
         spectrogram_features = self.spectrogram_encoder(spectrogram)
         attended_wavlm, _ = self.co_attention(
@@ -151,6 +166,8 @@ class WavLMAtt(nn.Module):
         return self.classifier(fused_features)
 
     @torch.no_grad()
-    def predict_proba(self, waveform, mfcc, spectrogram, attention_mask=None):
-        logits = self.forward(waveform, mfcc, spectrogram, attention_mask=attention_mask)
+    def predict_proba(self, waveform, mfcc, spectrogram, attention_mask=None, wavlm_features=None):
+        logits = self.forward(
+            waveform, mfcc, spectrogram, attention_mask=attention_mask, wavlm_features=wavlm_features
+        )
         return torch.softmax(logits, dim=-1)

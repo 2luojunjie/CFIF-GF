@@ -4,6 +4,7 @@ from transformers import WavLMModel
 
 
 class MFCCBiLSTMSequenceEncoder(nn.Module):
+    """Encode MFCC from [B, 40, T_m] to sequence features [B, T_m, 2H]."""
     def __init__(self, input_dim=40, hidden_size=256, num_layers=1, dropout=0.5):
         super().__init__()
         lstm_dropout = dropout if num_layers > 1 else 0.0
@@ -27,6 +28,7 @@ class MFCCBiLSTMSequenceEncoder(nn.Module):
 
 
 class TFCNNBranch(nn.Module):
+    """One time/frequency Conv2d branch, input [B, 1, F, T]."""
     def __init__(self, kernel_size, padding, out_channels=64):
         super().__init__()
         self.block = nn.Sequential(
@@ -41,7 +43,7 @@ class TFCNNBranch(nn.Module):
 
 
 class TFCNNSpectrogramEncoder(nn.Module):
-    """Time-frequency CNN producing a spectrogram feature sequence."""
+    """Encode spectrogram [B, F, T_s] to sequence features [B, T_s', D_s]."""
 
     def __init__(self, branch_channels=64, conv_channels=128, output_dim=512, dropout=0.5):
         super().__init__()
@@ -81,6 +83,7 @@ class TFCNNSpectrogramEncoder(nn.Module):
 
 
 class CrossFeatureInteractionBranch(nn.Module):
+    """Source [B, T_src, D_src] attends to WavLM [B, T_w, D_w]."""
     def __init__(self, source_dim, wavlm_dim, hidden_dim, output_dim):
         super().__init__()
         self.source_proj = nn.Linear(source_dim, hidden_dim)
@@ -99,7 +102,7 @@ class CrossFeatureInteractionBranch(nn.Module):
 
 
 class GlobalFusionBlock(nn.Module):
-    """gMLP-style global fusion with spatial gating and residual connection."""
+    """gMLP-style global fusion for sequence input [B, T_c, D_c]."""
 
     def __init__(self, input_dim, hidden_dim, dropout=0.5):
         super().__init__()
@@ -131,12 +134,17 @@ class CFIFGF(nn.Module):
 
     def __init__(self, model_cfg):
         super().__init__()
-        wavlm_name = model_cfg.get("wavlm_name", "microsoft/wavlm-base")
-        self.wavlm = WavLMModel.from_pretrained(wavlm_name)
-        self.wavlm_dim = int(getattr(self.wavlm.config, "hidden_size", 768))
+        self.use_offline_wavlm_features = bool(model_cfg.get("use_offline_wavlm_features", False))
+        if self.use_offline_wavlm_features:
+            self.wavlm = None
+            self.wavlm_dim = int(model_cfg.get("offline_wavlm_dim", 768))
+        else:
+            wavlm_name = model_cfg.get("wavlm_name", "microsoft/wavlm-base")
+            self.wavlm = WavLMModel.from_pretrained(wavlm_name)
+            self.wavlm_dim = int(getattr(self.wavlm.config, "hidden_size", 768))
 
         self.freeze_wavlm = bool(model_cfg.get("freeze_wavlm", True))
-        if self.freeze_wavlm:
+        if self.wavlm is not None and self.freeze_wavlm:
             for parameter in self.wavlm.parameters():
                 parameter.requires_grad = False
 
@@ -183,15 +191,21 @@ class CFIFGF(nn.Module):
             nn.Linear(classifier_hidden_dim, num_classes),
         )
 
-    def forward(self, waveform, mfcc, spectrogram, attention_mask=None):
-        if self.freeze_wavlm:
+    def forward(self, waveform, mfcc, spectrogram, attention_mask=None, wavlm_features=None):
+        # waveform: [B, samples]; optional wavlm_features: [B, T_w, D_w].
+        # mfcc: [B, 40, T_m]; spectrogram: [B, F, T_s].
+        if wavlm_features is not None and wavlm_features.numel() > 0:
+            wavlm_sequence = wavlm_features.float()
+        elif self.use_offline_wavlm_features:
+            raise ValueError("model.use_offline_wavlm_features is true, but batch wavlm_features is empty.")
+        elif self.freeze_wavlm:
             self.wavlm.eval()
             with torch.no_grad():
                 wavlm_outputs = self.wavlm(input_values=waveform.float(), attention_mask=attention_mask)
+            wavlm_sequence = wavlm_outputs.last_hidden_state
         else:
             wavlm_outputs = self.wavlm(input_values=waveform.float(), attention_mask=attention_mask)
-
-        wavlm_sequence = wavlm_outputs.last_hidden_state
+            wavlm_sequence = wavlm_outputs.last_hidden_state
         mfcc_sequence = self.mfcc_encoder(mfcc)
         spectrogram_sequence = self.spectrogram_encoder(spectrogram)
 
@@ -204,6 +218,8 @@ class CFIFGF(nn.Module):
         return self.classifier(fused_features)
 
     @torch.no_grad()
-    def predict_proba(self, waveform, mfcc, spectrogram, attention_mask=None):
-        logits = self.forward(waveform, mfcc, spectrogram, attention_mask=attention_mask)
+    def predict_proba(self, waveform, mfcc, spectrogram, attention_mask=None, wavlm_features=None):
+        logits = self.forward(
+            waveform, mfcc, spectrogram, attention_mask=attention_mask, wavlm_features=wavlm_features
+        )
         return torch.softmax(logits, dim=-1)

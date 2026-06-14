@@ -69,6 +69,7 @@ class SpeechEmotionDataset(Dataset):
             "label": torch.tensor(item["label"], dtype=torch.long),
             "speaker_id": item["speaker_id"],
             "file_path": item["path"],
+            "wavlm_features": self._load_offline_wavlm_features(item),
         }
 
     def _build_mock_items(self):
@@ -79,6 +80,7 @@ class SpeechEmotionDataset(Dataset):
                 "path": f"mock://sample_{index:04d}.wav",
                 "label": index % self.num_classes,
                 "speaker_id": speakers[index % len(speakers)],
+                "wavlm_path": "",
             }
             for index in range(num_samples)
         ]
@@ -97,4 +99,12 @@ class SpeechEmotionDataset(Dataset):
             "label": torch.tensor(item["label"], dtype=torch.long),
             "speaker_id": item["speaker_id"],
             "file_path": item["path"],
+            "wavlm_features": torch.empty(0),
         }
+
+    @staticmethod
+    def _load_offline_wavlm_features(item):
+        wavlm_path = item.get("wavlm_path")
+        if not wavlm_path:
+            return torch.empty(0)
+        return torch.load(wavlm_path, map_location="cpu").float()

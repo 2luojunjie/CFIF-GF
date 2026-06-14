@@ -115,7 +115,7 @@ def normalize_items(items, label_names):
                 "path": item["path"],
                 "label": int(label),
                 "speaker_id": str(item["speaker_id"]),
+                "wavlm_path": item.get("wavlm_path", ""),
             }
         )
     return normalized
-

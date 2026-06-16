@@ -1,0 +1,6 @@
+inherits: configs/iemocap_wavlm_att.yaml
+
+model:
+  fusion_mode: wavlm_only
+  wavlm_name: microsoft/wavlm-base
+

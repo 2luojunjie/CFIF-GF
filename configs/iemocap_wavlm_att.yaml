@@ -9,7 +9,9 @@ model:
   mfcc_num_layers: 1
   spectrogram_feature_dim: 512
   attention_dim: 256
+  fusion_mode: co_attention
+  fusion_dim: 512
+  mha_num_heads: 4
   classifier_hidden_dim: 256
   dropout: 0.5
   num_classes: 4
-

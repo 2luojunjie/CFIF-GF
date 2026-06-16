@@ -1,0 +1,7 @@
+inherits: configs/iemocap_wavlm_att.yaml
+
+model:
+  fusion_mode: mha_fusion
+  wavlm_name: microsoft/wavlm-base
+  mha_num_heads: 4
+

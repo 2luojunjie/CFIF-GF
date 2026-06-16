@@ -47,10 +47,13 @@ pip install -r requirements.txt
 - 提取 40 维 MFCC
 - MFCC window size 为 40 ms
 - MFCC hop length 为 10 ms
+- MFCC 显式使用 Hamming 窗
 - 提取 magnitude spectrogram
 - spectrogram FFT 长度为 800
 - spectrogram 取前 200 个 FFT bins
+- spectrogram 的 STFT 显式使用 Hamming 窗
 - 原始定长 waveform 保留给 WavLM 输入
+- 可通过 `dataset.preprocessing.pre_emphasis` 为手工特征分支开启预加重
 
 `SpeechEmotionDataset` 返回：
 
@@ -170,6 +173,8 @@ python train.py --config configs/default.yaml --fold 0
 `models/wavlm_att.py` 实现论文第 3 章模型：
 
 - 原始 `waveform` 输入 HuggingFace `microsoft/wavlm-base`
+- 实现使用 HuggingFace `AutoModel`，因此也可以通过 `model.wavlm_name`
+  切换 Wav2Vec2 或 HuBERT
 - WavLM 默认冻结：`model.freeze_wavlm: true`
 - 如需 fine-tune WavLM，将 `model.freeze_wavlm` 改为 `false`
 - `mfcc` 输入 Bi-LSTM
@@ -267,6 +272,19 @@ python train.py --config configs/ablation/mha_fusion.yaml --all-folds
 ```
 
 可用消融配置：
+
+第 3 章：
+
+- `configs/ablation_ch3/wavlm_att_full.yaml`
+- `configs/ablation_ch3/wavlm_only.yaml`
+- `configs/ablation_ch3/wavlm_concat.yaml`
+- `configs/ablation_ch3/wavlm_mha.yaml`
+- `configs/ablation_ch3/wav2vec2_att.yaml`
+- `configs/ablation_ch3/hubert_att.yaml`
+- `configs/ablation_ch3/wav2vec2_only.yaml`
+- `configs/ablation_ch3/hubert_only.yaml`
+
+第 4 章：
 
 - `configs/ablation/cfif_gf_full.yaml`
 - `configs/ablation/cfif_mfcc_to_wavlm.yaml`

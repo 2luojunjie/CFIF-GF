@@ -17,6 +17,9 @@ dataset:
   num_classes: 4
   label_names: [angry, happy, sad, neutral]
   preprocessing:
+    pre_emphasis: false
+    pre_emphasis_coeff: 0.97
+    window: hamming
     n_mfcc: 40
     mfcc_window_ms: 40
     mfcc_hop_ms: 10
@@ -38,6 +41,9 @@ model:
   mfcc_num_layers: 1
   spectrogram_feature_dim: 512
   attention_dim: 256
+  fusion_mode: co_attention
+  fusion_dim: 512
+  mha_num_heads: 4
   classifier_hidden_dim: 256
   dropout: 0.5
   num_classes: 4

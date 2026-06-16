@@ -2,7 +2,7 @@ import torch
 from torch.utils.data import Dataset
 
 from .manifests import discover_dataset_items, load_manifest, normalize_items
-from .preprocessing import extract_mfcc, extract_spectrogram, load_audio_16k_fixed
+from .preprocessing import extract_mfcc, extract_spectrogram, load_audio_16k_fixed, maybe_pre_emphasize
 
 
 class SpeechEmotionDataset(Dataset):
@@ -47,19 +47,26 @@ class SpeechEmotionDataset(Dataset):
             sample_rate=self.sample_rate,
             duration_seconds=self.duration_seconds,
         )
-        mfcc = extract_mfcc(
+        feature_waveform = maybe_pre_emphasize(
             waveform,
+            enabled=bool(self.preprocessing_cfg.get("pre_emphasis", False)),
+            coefficient=float(self.preprocessing_cfg.get("pre_emphasis_coeff", 0.97)),
+        )
+        mfcc = extract_mfcc(
+            feature_waveform,
             sample_rate=self.sample_rate,
             n_mfcc=int(self.preprocessing_cfg.get("n_mfcc", 40)),
             window_ms=float(self.preprocessing_cfg.get("mfcc_window_ms", 40)),
             hop_ms=float(self.preprocessing_cfg.get("mfcc_hop_ms", 10)),
+            window=self.preprocessing_cfg.get("window", "hamming"),
         )
         spectrogram = extract_spectrogram(
-            waveform,
+            feature_waveform,
             sample_rate=self.sample_rate,
             n_fft=int(self.preprocessing_cfg.get("spectrogram_n_fft", 800)),
             bins=int(self.preprocessing_cfg.get("spectrogram_bins", 200)),
             hop_ms=float(self.preprocessing_cfg.get("spectrogram_hop_ms", 10)),
+            window=self.preprocessing_cfg.get("window", "hamming"),
         )
 
         return {

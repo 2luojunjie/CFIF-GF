@@ -1,6 +1,6 @@
 import torch
 from torch import nn
-from transformers import WavLMModel
+from transformers import AutoModel
 
 
 class MFCCBiLSTMEncoder(nn.Module):
@@ -101,7 +101,7 @@ class WavLMAtt(nn.Module):
             self.wavlm_dim = int(model_cfg.get("offline_wavlm_dim", 768))
         else:
             wavlm_name = model_cfg.get("wavlm_name", "microsoft/wavlm-base")
-            self.wavlm = WavLMModel.from_pretrained(wavlm_name)
+            self.wavlm = AutoModel.from_pretrained(wavlm_name)
             self.wavlm_dim = int(getattr(self.wavlm.config, "hidden_size", 768))
 
         self.freeze_wavlm = bool(model_cfg.get("freeze_wavlm", True))
@@ -127,9 +127,26 @@ class WavLMAtt(nn.Module):
             attention_dim=int(model_cfg.get("attention_dim", 256)),
         )
 
-        classifier_input_dim = (
-            self.wavlm_dim + self.mfcc_encoder.output_dim + self.spectrogram_encoder.output_dim
+        self.fusion_mode = model_cfg.get("fusion_mode", "co_attention")
+        fusion_dim = int(model_cfg.get("fusion_dim", 512))
+        self.wavlm_proj = nn.Linear(self.wavlm_dim, fusion_dim)
+        self.mfcc_proj = nn.Linear(self.mfcc_encoder.output_dim, fusion_dim)
+        self.spec_proj = nn.Linear(self.spectrogram_encoder.output_dim, fusion_dim)
+        self.mha = nn.MultiheadAttention(
+            embed_dim=fusion_dim,
+            num_heads=int(model_cfg.get("mha_num_heads", 4)),
+            dropout=dropout,
+            batch_first=True,
         )
+
+        if self.fusion_mode == "wavlm_only":
+            classifier_input_dim = self.wavlm_dim
+        elif self.fusion_mode == "mha_fusion":
+            classifier_input_dim = fusion_dim
+        else:
+            classifier_input_dim = (
+                self.wavlm_dim + self.mfcc_encoder.output_dim + self.spectrogram_encoder.output_dim
+            )
         classifier_hidden_dim = int(model_cfg.get("classifier_hidden_dim", 256))
         num_classes = int(model_cfg["num_classes"])
         self.classifier = nn.Sequential(
@@ -156,14 +173,30 @@ class WavLMAtt(nn.Module):
             wavlm_sequence = wavlm_outputs.last_hidden_state
         mfcc_features = self.mfcc_encoder(mfcc)
         spectrogram_features = self.spectrogram_encoder(spectrogram)
+        fused_features = self._fuse_features(wavlm_sequence, mfcc_features, spectrogram_features)
+        return self.classifier(fused_features)
+
+    def _fuse_features(self, wavlm_sequence, mfcc_features, spectrogram_features):
+        if self.fusion_mode == "wavlm_only":
+            return wavlm_sequence.mean(dim=1)
+        if self.fusion_mode == "concat_fusion":
+            wavlm_features = wavlm_sequence.mean(dim=1)
+            return torch.cat([wavlm_features, mfcc_features, spectrogram_features], dim=-1)
+        if self.fusion_mode == "mha_fusion":
+            wavlm_token = self.wavlm_proj(wavlm_sequence.mean(dim=1, keepdim=True))
+            mfcc_token = self.mfcc_proj(mfcc_features).unsqueeze(1)
+            spec_token = self.spec_proj(spectrogram_features).unsqueeze(1)
+            tokens = torch.cat([wavlm_token, mfcc_token, spec_token], dim=1)
+            fused, _ = self.mha(tokens, tokens, tokens)
+            return fused.mean(dim=1)
+
         attended_wavlm, _ = self.co_attention(
             wavlm_sequence=wavlm_sequence,
             mfcc_features=mfcc_features,
             spectrogram_features=spectrogram_features,
             attention_mask=None,
         )
-        fused_features = torch.cat([attended_wavlm, mfcc_features, spectrogram_features], dim=-1)
-        return self.classifier(fused_features)
+        return torch.cat([attended_wavlm, mfcc_features, spectrogram_features], dim=-1)
 
     @torch.no_grad()
     def predict_proba(self, waveform, mfcc, spectrogram, attention_mask=None, wavlm_features=None):

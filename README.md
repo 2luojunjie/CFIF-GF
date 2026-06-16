@@ -47,10 +47,14 @@ All samples are processed consistently in `data/preprocessing.py`:
 - Extract 40-dimensional MFCC features.
 - MFCC window size: 40 ms.
 - MFCC hop length: 10 ms.
+- MFCC uses a Hamming window.
 - Extract magnitude spectrogram features.
 - Spectrogram FFT length: 800.
 - Use the first 200 FFT bins as spectrogram input.
+- Spectrogram STFT uses a Hamming window.
 - Keep the raw fixed-length waveform for WavLM input.
+- Optional pre-emphasis can be enabled for handcrafted features with
+  `dataset.preprocessing.pre_emphasis`.
 
 `SpeechEmotionDataset` returns:
 
@@ -174,6 +178,8 @@ These are computed in `utils/metrics.py` as:
 `models/wavlm_att.py` implements the chapter 3 model:
 
 - Raw `waveform` is passed to HuggingFace `microsoft/wavlm-base`.
+- The implementation uses HuggingFace `AutoModel`, so Wav2Vec2 and HuBERT
+  backbones can also be selected through `model.wavlm_name`.
 - WavLM parameters are frozen by default with `model.freeze_wavlm: true`.
 - Set `model.freeze_wavlm: false` to fine-tune WavLM.
 - `mfcc` is encoded by a bidirectional LSTM.
@@ -288,6 +294,19 @@ python train.py --config configs/ablation/mha_fusion.yaml --all-folds
 ```
 
 Available ablation configs:
+
+Chapter 3:
+
+- `configs/ablation_ch3/wavlm_att_full.yaml`
+- `configs/ablation_ch3/wavlm_only.yaml`
+- `configs/ablation_ch3/wavlm_concat.yaml`
+- `configs/ablation_ch3/wavlm_mha.yaml`
+- `configs/ablation_ch3/wav2vec2_att.yaml`
+- `configs/ablation_ch3/hubert_att.yaml`
+- `configs/ablation_ch3/wav2vec2_only.yaml`
+- `configs/ablation_ch3/hubert_only.yaml`
+
+Chapter 4:
 
 - `configs/ablation/cfif_gf_full.yaml`
 - `configs/ablation/cfif_mfcc_to_wavlm.yaml`

@@ -225,19 +225,32 @@ python train.py --config configs/default.yaml --fold 0
 - 原始 `waveform` 输入 HuggingFace `microsoft/wavlm-base`
 - 实现使用 HuggingFace `AutoModel`，因此也可以通过 `model.wavlm_name`
   切换 Wav2Vec2 或 HuBERT
-- WavLM 默认冻结：`model.freeze_wavlm: true`
-- 如需 fine-tune WavLM，将 `model.freeze_wavlm` 改为 `false`
-- `mfcc` 输入 Bi-LSTM
+- 第 3 章实验配置默认端到端微调 WavLM：`model.freeze_wavlm: false`
+- 仅在冻结骨干或使用离线特征的对照实验中设置 `model.freeze_wavlm: true`
+- `mfcc` 输入 Bi-LSTM，并保留时序输出 `X'_M: [B, T_m, 512]`
 - MFCC Bi-LSTM hidden size 为 256
 - MFCC Bi-LSTM 层数由 `model.mfcc_num_layers` 配置
 - `spectrogram` 输入 AlexNet 风格 CNN
 - CNN 通道为 64、192、384、256、256
 - 第一层卷积核为 11，后续卷积核为 3
-- 共同注意力模块使用 MFCC 与 spectrogram 特征生成 WavLM 时间帧注意力权重
-- 加权 WavLM 特征、MFCC 特征、spectrogram 特征拼接后分类
+- 自适应平均池化和 3 个全连接层保留语谱图时序输出 `X'_S: [B, T_s, D_s]`
+- 按照图 3.6 和公式 3.4、3.5，对齐后的 MFCC 与语谱图序列经过
+  `Concat -> Dropout -> Linear` 生成 `X'_att`
+- `X'_att` 对 WavLM 序列加权，再经过 `Dropout -> Linear` 得到 `X''_W`
+- 加权 WavLM、MFCC、spectrogram 特征拼接后经过 `Dropout -> Linear` 分类
 
 模型 forward 返回 logits，用于 `CrossEntropyLoss`。推理概率可调用
 `model.predict_proba(...)`，内部会应用 Softmax。
+
+论文没有给出 AlexNet 三层 FC 的具体宽度、辅助特征固定时间长度、WavLM 是否冻结，
+也没有在公式 3.4 中写出注意力归一化。代码将这些细节配置化为
+`spectrogram_fc1_dim`、`spectrogram_fc2_dim`、`attention_source_frames`、
+`freeze_wavlm` 和 `attention_normalization`。论文对齐配置分别采用 1024/512、8、
+端到端微调和不归一化；`softmax`、`sigmoid` 可用于受控对照实验。
+
+旧版池化/加性注意力实现生成的 checkpoint 与当前结构不兼容。请开始新的第 3 章实验，
+不要从旧 checkpoint 恢复；为防止覆盖旧结果，`configs/emodb_wavlm_att_run.yaml`
+默认写入 `outputs_ch3_aligned`。
 
 ## CFIF-GF 模型
 
@@ -407,3 +420,5 @@ manifest 中的 `wavlm_path` 列会被自动读取。启用
 - LOSO 训练中，留出的 speaker 同时作为该折 early stopping 和最终报告的评估/测试集
 - IEMOCAP 的 `exc` 合并到 `happy`
 - 当论文细节没有完全明确时，代码优先保证 PyTorch 实现可运行，并将维度写入 YAML 便于调整
+- 第 3 章 AlexNet FC 宽度采用 1024、512、512，MFCC/语谱图注意力输入自适应到 8 帧
+- 3 秒、16 kHz 输入的 WavLM Base 预期输出 149 帧；离线特征长度不同时会线性对齐注意力权重

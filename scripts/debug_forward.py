@@ -35,10 +35,12 @@ def debug_wavlm_att(config, waveform, mfcc, spectrogram, wavlm_features):
 
     with torch.no_grad():
         wavlm_sequence = wavlm_features
-        mfcc_features = model.mfcc_encoder(mfcc)
-        cnn_features = model.spectrogram_encoder(spectrogram)
-        attended_wavlm, attention = model.co_attention(wavlm_sequence, mfcc_features, cnn_features)
-        fusion_features = torch.cat([attended_wavlm, mfcc_features, cnn_features], dim=-1)
+        mfcc_sequence = model.mfcc_encoder(mfcc)
+        cnn_sequence = model.spectrogram_encoder(spectrogram)
+        attended_wavlm, attention = model.co_attention(wavlm_sequence, mfcc_sequence, cnn_sequence)
+        fusion_features = torch.cat(
+            [attended_wavlm, mfcc_sequence.mean(dim=1), cnn_sequence.mean(dim=1)], dim=-1
+        )
         logits = model(waveform, mfcc, spectrogram, wavlm_features=wavlm_features)
 
     print("\n[WavLM_Att]")
@@ -46,8 +48,8 @@ def debug_wavlm_att(config, waveform, mfcc, spectrogram, wavlm_features):
     print(f"mfcc: {shape(mfcc)}")
     print(f"spectrogram: {shape(spectrogram)}")
     print(f"WavLM feature: {shape(wavlm_sequence)}")
-    print(f"BiLSTM feature: {shape(mfcc_features)}")
-    print(f"CNN feature: {shape(cnn_features)}")
+    print(f"BiLSTM feature: {shape(mfcc_sequence)}")
+    print(f"CNN feature: {shape(cnn_sequence)}")
     print(f"attention: {shape(attention)}")
     print(f"fusion feature: {shape(fusion_features)}")
     print(f"logits: {shape(logits)}")
@@ -117,4 +119,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

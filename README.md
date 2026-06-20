@@ -231,21 +231,37 @@ These are computed in `utils/metrics.py` as:
 - Raw `waveform` is passed to HuggingFace `microsoft/wavlm-base`.
 - The implementation uses HuggingFace `AutoModel`, so Wav2Vec2 and HuBERT
   backbones can also be selected through `model.wavlm_name`.
-- WavLM parameters are frozen by default with `model.freeze_wavlm: true`.
-- Set `model.freeze_wavlm: false` to fine-tune WavLM.
-- `mfcc` is encoded by a bidirectional LSTM.
+- Chapter 3 experiment configs fine-tune WavLM with `model.freeze_wavlm: false`.
+- Set `model.freeze_wavlm: true` only for a frozen-backbone comparison or offline features.
+- `mfcc` is encoded by a bidirectional LSTM and retains its sequence output
+  `X'_M: [B, T_m, 512]`.
 - MFCC BiLSTM hidden size is 256.
 - MFCC BiLSTM layer count is configurable with `model.mfcc_num_layers`.
 - `spectrogram` is encoded by an AlexNet-style CNN.
 - CNN channels are 64, 192, 384, 256, 256.
 - CNN kernels use 11 in the first convolution and 3 in later convolutions.
-- The co-attention module uses MFCC and spectrogram features to generate
-  temporal attention weights over the WavLM output sequence.
+- Adaptive average pooling and three fully connected layers retain the
+  spectrogram sequence `X'_S: [B, T_s, D_s]`.
+- Following Figure 3.6 and equations 3.4-3.5, aligned MFCC and spectrogram
+  sequences pass through `Concat -> Dropout -> Linear` to generate `X'_att`.
+- `X'_att` weights the WavLM sequence; the result passes through
+  `Dropout -> Linear` to obtain `X''_W`.
 - Attended WavLM, MFCC, and spectrogram features are concatenated for
-  classification.
+  `Dropout -> Linear` classification.
 
 The model forward pass returns logits for `CrossEntropyLoss`. For inference
 probabilities, use `model.predict_proba(...)`, which applies Softmax.
+
+The paper does not report the AlexNet FC widths, the fixed auxiliary temporal
+length, whether WavLM is frozen, or an attention normalization. These are
+configurable as `spectrogram_fc1_dim`, `spectrogram_fc2_dim`,
+`attention_source_frames`, `freeze_wavlm`, and `attention_normalization`.
+The paper-aligned configs use 1024/512, 8, fine-tuning, and no normalization;
+`softmax` and `sigmoid` remain available for controlled comparisons.
+Checkpoints created by the earlier pooled/additive-attention implementation are
+not shape-compatible with this model. Start a new run instead of resuming an
+old chapter 3 checkpoint; `configs/emodb_wavlm_att_run.yaml` writes to
+`outputs_ch3_aligned` for this reason.
 
 ## CFIF-GF Model
 

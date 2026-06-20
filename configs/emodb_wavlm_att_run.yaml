@@ -6,12 +6,12 @@ dataset:
   mock: false
   all_manifest: null
 
-output_dir: outputs_formal
+output_dir: outputs_ch3_aligned
 
 model:
   name: WavLM_Att
   wavlm_name: microsoft/wavlm-base
-  freeze_wavlm: true
+  freeze_wavlm: false
   use_offline_wavlm_features: false
   fusion_mode: co_attention
 

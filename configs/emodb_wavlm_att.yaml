@@ -3,11 +3,18 @@ inherits: configs/emodb.yaml
 model:
   name: WavLM_Att
   wavlm_name: microsoft/wavlm-base
-  freeze_wavlm: true
+  freeze_wavlm: false
   mfcc_dim: 40
   mfcc_hidden_size: 256
   mfcc_num_layers: 1
   spectrogram_feature_dim: 512
+  spectrogram_fc1_dim: 1024
+  spectrogram_fc2_dim: 512
+  spectrogram_output_frames: 8
+  expected_wavlm_frames: 149
+  attention_source_frames: 8
+  attended_wavlm_dim: 512
+  attention_normalization: none
   attention_dim: 256
   fusion_mode: co_attention
   fusion_dim: 512

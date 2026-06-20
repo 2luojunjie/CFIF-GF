@@ -17,3 +17,10 @@ runs/
 .DS_Store
 Thumbs.db
 
+
+# Local experiment data and outputs
+.ipynb_checkpoints/
+**/.ipynb_checkpoints/
+data/EmoDB/
+outputs_formal/
+features/

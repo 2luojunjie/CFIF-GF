@@ -1,0 +1,14 @@
+inherits: configs/emodb_cfif_gf.yaml
+
+train:
+  learning_rate: 0.00003
+  batch_size: 2
+  epochs: 2
+  num_workers: 0
+  optimizer: AdamW
+  amp: true
+  grad_clip_norm: 5.0
+  early_stopping:
+    monitor: wa
+    patience: 2
+    min_delta: 0.0

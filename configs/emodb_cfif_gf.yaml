@@ -1,2 +1,11 @@
+#inherits: configs/cfif_gf_emodb.yaml
+
 inherits: configs/cfif_gf_emodb.yaml
 
+dataset:
+  backend: wav
+  root: /root/autodl-tmp/SER/CFIF-GF/data/EmoDB
+  mock: false
+  all_manifest: null
+
+output_dir: outputs

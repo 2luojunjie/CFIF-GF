@@ -1,0 +1,26 @@
+inherits: configs/emodb_cfif_gf.yaml
+
+output_dir: outputs_formal
+
+model:
+  name: CFIF-GF
+  wavlm_name: microsoft/wavlm-base
+  freeze_wavlm: true
+  use_offline_wavlm_features: false
+  fusion_mode: full
+  use_global_fusion: true
+
+train:
+  learning_rate: 0.00003
+  batch_size: 64
+  epochs: 100
+  num_workers: 4
+  optimizer: AdamW
+  weight_decay: 0.0
+  amp: true
+  grad_clip_norm: 5.0
+  log_backend: csv
+  early_stopping:
+    monitor: wa
+    patience: 10
+    min_delta: 0.0

@@ -1,9 +1,16 @@
 from .manifests import discover_dataset_items, load_manifest, normalize_items
+from .npy_dataset import load_npy_items
 
 
 def load_all_items(dataset_cfg):
     if dataset_cfg.get("mock", True):
         return _mock_items(dataset_cfg)
+
+    backend = dataset_cfg.get("backend", "wav").lower()
+    if backend == "npy":
+        return load_npy_items(dataset_cfg)
+    if backend != "wav":
+        raise ValueError(f"Unsupported dataset backend '{backend}'. Choose from: wav, npy")
 
     manifest = dataset_cfg.get("all_manifest")
     if manifest:

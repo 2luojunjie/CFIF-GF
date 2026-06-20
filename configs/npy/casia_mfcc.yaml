@@ -1,0 +1,29 @@
+inherits: configs/default.yaml
+
+dataset:
+  name: CASIA
+  backend: npy
+  mock: false
+  npy_path: data/processed/CASIA.npy
+  num_classes: 6
+  label_names: [angry, fear, happy, neutral, sad, surprise]
+  loso:
+    expected_folds: 4
+  npy:
+    allow_pickle: true
+    mmap_mode: null
+    keys:
+      mfcc: x
+      label: y
+    mfcc_dim: 39
+    speaker_id_strategy: block
+    num_speakers: 4
+    speaker_prefix: casia_spk
+    compute_missing_features: false
+    # CASIA.npy only contains MFCC x and one-hot y. Zeros make the common batch
+    # contract testable, but are not a valid replacement for real waveform/spec.
+    missing_feature_policy: zeros
+
+model:
+  mfcc_dim: 39
+  num_classes: 6

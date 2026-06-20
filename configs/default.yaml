@@ -5,6 +5,7 @@ log_dir: logs
 
 dataset:
   name: IEMOCAP
+  backend: wav
   root: data/IEMOCAP
   all_manifest: null
   train_manifest: null

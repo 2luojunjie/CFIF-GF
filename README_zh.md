@@ -74,6 +74,56 @@ pip install -r requirements.txt
 
 数据加载支持两种方式。
 
+### 数据读取 Backend
+
+原始 wav 读取逻辑仍然是默认方式：
+
+```yaml
+dataset:
+  backend: wav
+```
+
+已经预处理好的 NumPy 数据可选择 NPY backend：
+
+```yaml
+dataset:
+  backend: npy
+  mock: false
+  npy_path: data/processed/IEMOCAP.npy
+  npy:
+    allow_pickle: true
+    keys:
+      waveform: waveform
+      mfcc: mfcc
+      spectrogram: spectrogram
+      label: label
+      speaker_id: speaker_id
+      file_path: file_path
+      wavlm_features: wavlm_features
+```
+
+NPY backend 支持 dict of arrays、structured array，以及由样本字典组成的一维
+array/list。自定义字段名通过 `dataset.npy.keys` 映射。标签支持整数、字符串和
+one-hot；MFCC 与 spectrogram 会统一成 `[features, frames]`。
+
+配置未知 `.npy` 文件前，先检查其内部结构：
+
+```bash
+python -m scripts.inspect_npy --path /path/to/dataset.npy
+```
+
+本次提供的 `CASIA.npy` 实际结构为 `x: [1200, 172, 39]`、one-hot
+`y: [1200, 6]`，其中 `x` 是 39 维 MFCC，不是 waveform。因此应配置
+`keys.mfcc: x`、`keys.label: y` 和 `model.mfcc_dim: 39`。该文件不包含
+waveform、spectrogram 或 speaker 元数据；只有明确知道样本排列方式时，才能配置
+speaker 生成策略。zero placeholder 只能用于验证公共数据管线，不能作为
+WavLM_Att/CFIF-GF 的有效实验输入。
+
+示例配置：
+
+- `configs/npy/iemocap_example.yaml`：完整多模态 NPY 字段映射。
+- `configs/npy/casia_mfcc.yaml`：MFCC-only CASIA 样例及其限制。
+
 ### Manifest 方式
 
 将 `dataset.mock` 设为 `false`，并为 LOSO 训练提供 `dataset.all_manifest`。

@@ -1,0 +1,20 @@
+inherits: configs/iemocap_cfif_gf.yaml
+
+dataset:
+  backend: npy
+  mock: false
+  npy_path: data/processed/IEMOCAP.npy
+  npy:
+    allow_pickle: true
+    mmap_mode: null
+    keys:
+      waveform: waveform
+      mfcc: mfcc
+      spectrogram: spectrogram
+      label: label
+      speaker_id: speaker_id
+      file_path: file_path
+      wavlm_features: wavlm_features
+    compute_missing_features: true
+    enforce_fixed_waveform: true
+    missing_feature_policy: error

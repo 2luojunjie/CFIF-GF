@@ -1,5 +1,6 @@
 from torch.utils.data import DataLoader
 
+from .npy_dataset import NpySpeechEmotionDataset
 from .ser_dataset import SpeechEmotionDataset
 
 
@@ -8,6 +9,11 @@ SUPPORTED_DATASETS = {"IEMOCAP", "EMODB"}
 
 def build_dataset(config, split, items=None):
     dataset_cfg = config["dataset"]
+    backend = dataset_cfg.get("backend", "wav").lower()
+    if backend == "npy":
+        return NpySpeechEmotionDataset(dataset_cfg, items=items)
+    if backend != "wav":
+        raise ValueError(f"Unsupported dataset backend '{backend}'. Choose from: wav, npy")
     dataset_name = dataset_cfg["name"].upper()
     if dataset_name not in SUPPORTED_DATASETS:
         supported = ", ".join(sorted(SUPPORTED_DATASETS))

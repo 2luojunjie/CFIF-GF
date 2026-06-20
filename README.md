@@ -75,6 +75,57 @@ Supported dataset names:
 
 The loader supports two modes.
 
+### Dataset Backend
+
+The original raw-audio loader remains the default:
+
+```yaml
+dataset:
+  backend: wav
+```
+
+Preprocessed NumPy datasets can use the optional NPY backend:
+
+```yaml
+dataset:
+  backend: npy
+  mock: false
+  npy_path: data/processed/IEMOCAP.npy
+  npy:
+    allow_pickle: true
+    keys:
+      waveform: waveform
+      mfcc: mfcc
+      spectrogram: spectrogram
+      label: label
+      speaker_id: speaker_id
+      file_path: file_path
+      wavlm_features: wavlm_features
+```
+
+The NPY backend accepts a dict of arrays, a structured array, or a one-dimensional
+array/list of sample dictionaries. Custom field names are mapped through
+`dataset.npy.keys`. Labels may be integer indices, strings, or one-hot vectors.
+MFCC and spectrogram orientation is normalized to `[features, frames]`.
+
+Inspect an unknown file before configuring it:
+
+```bash
+python -m scripts.inspect_npy --path /path/to/dataset.npy
+```
+
+The provided `CASIA.npy` example has `x: [1200, 172, 39]` and one-hot
+`y: [1200, 6]`. It contains MFCC only, so use `keys.mfcc: x`, `keys.label: y`,
+and `model.mfcc_dim: 39`. It does not contain waveform, spectrogram, or speaker
+metadata. A speaker strategy must only be configured when the file ordering is
+known. Zero placeholders can test the common data pipeline, but they are not a
+scientifically valid input for WavLM_Att or CFIF-GF.
+
+Example configs:
+
+- `configs/npy/iemocap_example.yaml`: full multimodal NPY mapping.
+- `configs/npy/casia_mfcc.yaml`: MFCC-only CASIA example and explicit limitations.
+
 ### Manifest Mode
 
 Set `dataset.mock: false` and provide `dataset.all_manifest` for LOSO training,

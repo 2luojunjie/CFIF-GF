@@ -14,6 +14,16 @@ def load_audio_16k_fixed(path, sample_rate=16000, duration_seconds=3.0):
     return waveform
 
 
+def fix_waveform_length(waveform, sample_rate=16000, duration_seconds=3.0):
+    target_length = int(sample_rate * duration_seconds)
+    waveform = np.asarray(waveform, dtype=np.float32).reshape(-1)
+    if waveform.shape[0] < target_length:
+        waveform = np.pad(waveform, (0, target_length - waveform.shape[0]), mode="constant")
+    else:
+        waveform = waveform[:target_length]
+    return waveform.astype(np.float32)
+
+
 def apply_pre_emphasis(waveform, coefficient=0.97):
     if waveform.size == 0:
         return waveform
